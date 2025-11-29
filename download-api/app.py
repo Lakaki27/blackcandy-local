@@ -90,27 +90,16 @@ HTML_TEMPLATE = """
             color: #0c5460;
             border: 1px solid #bee5eb;
         }
-        .tip {
-            color: #666;
-            font-size: 13px;
-            margin-top: 16px;
-            padding-top: 16px;
-            border-top: 1px solid #e0e0e0;
-        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🎵 Music Downloader</h1>
+        <h1>BlackCandy Music Downloader</h1>
         <div class="input-group">
             <input type="text" id="urlInput" placeholder="Paste YouTube URL here...">
             <button onclick="download()">Download</button>
         </div>
         <div id="status" class="status"></div>
-        <div class="tip">
-            Paste a YouTube URL and click Download. The audio will be saved to your music folder
-            and automatically appear in Black Candy.
-        </div>
     </div>
 
     <script>
@@ -180,12 +169,12 @@ def download():
         return jsonify({"error": "URL is required"}), 400
 
     try:
-        result = subprocess.run(
+        subprocess.run(
             [
                 "yt-dlp",
                 "-x",
                 "--audio-format",
-                "mp3",
+                "opus",
                 "--audio-quality",
                 "0",
                 "--embed-thumbnail",
