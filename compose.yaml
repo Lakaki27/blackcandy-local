@@ -1,0 +1,28 @@
+name: "blackcandy-local"
+
+services:
+    blackcandy:
+        image: ghcr.io/blackcandy-org/blackcandy:latest
+        ports:
+            - "6900:80"
+        environment:
+            - MEDIA_PATH=/media_data
+        volumes:
+            - ./music:/media_data
+            - blackcandy_data:/app/storage
+        restart: unless-stopped
+
+    download-api:
+        build:
+            context: ./download-api
+            dockerfile: Dockerfile
+        ports:
+            - "6901:80"
+        volumes:
+            - ./music:/downloads
+        environment:
+            - FLASK_ENV=production
+        restart: unless-stopped
+
+volumes:
+    blackcandy_data:
