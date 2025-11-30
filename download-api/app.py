@@ -236,7 +236,7 @@ def shuffle_all():
             "DELETE FROM playlists_songs WHERE playlist_id = %s", (playlist_id,)
         )
 
-        cur.execute("SELECT id FROM songs")
+        cur.execute("SELECT id FROM songs ORDER BY created_at DESC")
         song_ids = [row[0] for row in cur.fetchall()]
 
         position = 1
