@@ -1,11 +1,14 @@
 import os
+import random
 import subprocess
 
+import psycopg2
 from flask import Flask, jsonify, render_template_string, request
 
 app = Flask(__name__)
 
 DOWNLOAD_DIR = "/downloads"
+PLAYLIST_FILE = os.path.join(DOWNLOAD_DIR, "Shuffle.m3u")
 
 HTML_TEMPLATE = """
 <!DOCTYPE html>
@@ -94,10 +97,13 @@ HTML_TEMPLATE = """
 </head>
 <body>
     <div class="container">
-        <h1>BlackCandy Music Downloader</h1>
+        <h1>BlackCandy Helper</h1>
         <div class="input-group">
             <input type="text" id="urlInput" placeholder="Paste YouTube URL here...">
             <button onclick="download()">Download</button>
+        </div>
+        <div style="margin-top: 20px;">
+            <button onclick="shuffleAll()">Rebuild Shuffle Playlist</button>
         </div>
         <div id="status" class="status"></div>
     </div>
@@ -112,30 +118,44 @@ HTML_TEMPLATE = """
 
         async function download() {
             const url = urlInput.value.trim();
-
             if (!url) {
                 showStatus('Please enter a URL', 'error');
                 return;
             }
-
-            const button = document.querySelector('button');
+            const button = event.target;
             button.disabled = true;
             showStatus('Downloading...', 'loading');
-
             try {
                 const response = await fetch('/api/download', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ url })
                 });
-
                 const data = await response.json();
-
                 if (response.ok) {
                     showStatus('✓ Download completed!', 'success');
                     urlInput.value = '';
                 } else {
                     showStatus('✗ ' + (data.error || 'Download failed'), 'error');
+                }
+            } catch (error) {
+                showStatus('✗ Network error: ' + error.message, 'error');
+            } finally {
+                button.disabled = false;
+            }
+        }
+
+        async function shuffleAll() {
+            const button = event.target;
+            button.disabled = true;
+            showStatus('Shuffling playlist...', 'loading');
+            try {
+                const response = await fetch('/api/shuffle_all', { method: 'POST' });
+                const data = await response.json();
+                if (response.ok) {
+                    showStatus('✓ Playlist shuffled successfully!', 'success');
+                } else {
+                    showStatus('✗ ' + (data.error || 'Shuffle failed'), 'error');
                 }
             } catch (error) {
                 showStatus('✗ Network error: ' + error.message, 'error');
@@ -154,6 +174,11 @@ HTML_TEMPLATE = """
 </html>
 """
 
+DB_URL = os.getenv(
+    "BLACKCANDY_DB",
+    "postgres://blackcandy:blackcandy_pass@postgres:5432/blackcandy?sslmode=disable",
+)
+
 
 @app.route("/")
 def index():
@@ -167,7 +192,6 @@ def download():
 
     if not url:
         return jsonify({"error": "URL is required"}), 400
-
     try:
         subprocess.run(
             [
@@ -189,12 +213,54 @@ def download():
             timeout=300,
         )
 
-        return jsonify({"success": True, "message": "Download completed"})
-
+        return jsonify(
+            {
+                "success": True,
+                "message": "Download completed and songs added to Shuffle playlist",
+            }
+        )
     except subprocess.TimeoutExpired:
         return jsonify({"error": "Download timed out"}), 500
     except subprocess.CalledProcessError as e:
         return jsonify({"error": "Download failed", "details": e.stderr}), 500
+
+
+@app.route("/api/shuffle_all", methods=["POST"])
+def shuffle_all():
+    playlist_id = 3
+    try:
+        conn = psycopg2.connect(DB_URL)
+        cur = conn.cursor()
+
+        cur.execute(
+            "DELETE FROM playlists_songs WHERE playlist_id = %s", (playlist_id,)
+        )
+
+        cur.execute("SELECT id FROM songs")
+        song_ids = [row[0] for row in cur.fetchall()]
+
+        position = 1
+
+        for song_id in song_ids:
+            cur.execute(
+                "INSERT INTO playlists_songs (playlist_id, song_id, position) VALUES (%s, %s, %s)",
+                (playlist_id, song_id, position),
+            )
+            position += 1
+
+        conn.commit()
+        cur.close()
+        conn.close()
+
+        return jsonify(
+            {
+                "success": True,
+                "message": f"Playlist {playlist_id} reset and shuffled with {len(song_ids)} songs.",
+            }
+        )
+    except Exception as e:
+        print("Error shuffling playlist:", e)
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/health", methods=["GET"])

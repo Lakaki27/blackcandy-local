@@ -6,11 +6,28 @@ services:
         ports:
             - "6900:80"
         environment:
-            - MEDIA_PATH=/media_data
+            MEDIA_PATH: /media_data
+            DB_ADAPTER: postgresql
+            DB_URL: postgres://blackcandy:blackcandy_pass@postgres:5432/blackcandy?sslmode=disable
+            CACHE_DB_URL: postgres://blackcandy:blackcandy_pass@postgres:5432/blackcandy_cache?sslmode=disable
+            QUEUE_DB_URL: postgres://blackcandy:blackcandy_pass@postgres:5432/blackcandy_queue?sslmode=disable
+            CABLE_DB_URL: postgres://blackcandy:blackcandy_pass@postgres:5432/blackcandy_cable?sslmode=disable
         volumes:
             - ./music:/media_data
             - blackcandy_data:/app/storage
-        restart: unless-stopped
+
+    postgres:
+        image: postgres:15
+        container_name: blackcandy-postgres
+        environment:
+            POSTGRES_USER: blackcandy
+            POSTGRES_PASSWORD: blackcandy_pass
+            POSTGRES_DB: blackcandy
+        volumes:
+            - blackcandy_pgdata:/var/lib/postgresql/data
+            - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+        ports:
+            - "5432:5432"
 
     download-api:
         build:
@@ -21,8 +38,9 @@ services:
         volumes:
             - ./music:/downloads
         environment:
-            - FLASK_ENV=production
-        restart: unless-stopped
+            FLASK_ENV: production
+            BLACKCANDY_DB: postgres://blackcandy:blackcandy_pass@postgres:5432/blackcandy?sslmode=disable
 
 volumes:
     blackcandy_data:
+    blackcandy_pgdata:
